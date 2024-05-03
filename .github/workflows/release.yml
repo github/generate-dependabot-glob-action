@@ -28,7 +28,7 @@ jobs:
           cmd: build
 
       - name: Do release
-        uses: Makeshift/semver-release-action@v0.1.5
+        uses: Makeshift/semver-release-action@v0.1.6
         with:
           files: |
             action.yml
