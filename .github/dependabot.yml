@@ -3,29 +3,29 @@
 version: 2
 updates:
   - package-ecosystem: docker
-    directory: /test/docker/container_1
+    directory: test/docker/container_1
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
   - package-ecosystem: docker
-    directory: /test/docker/container_2
+    directory: test/docker/container_2
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
   - package-ecosystem: docker
-    directory: /test/docker/weird_dockerfile
+    directory: test/docker/weird_dockerfile
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
   - package-ecosystem: npm
-    directory: /test/npm/npm_1
+    directory: test/npm/npm_1
     ignore:
       - dependency-name: '*'
     schedule:
       interval: daily
     open-pull-requests-limit: 0
   - package-ecosystem: npm
-    directory: /test/npm/yarn_1
+    directory: test/npm/yarn_1
     ignore:
       - dependency-name: '*'
     schedule:
@@ -53,10 +53,10 @@ updates:
       interval: weekly
     open-pull-requests-limit: 0
   - package-ecosystem: npm
-    directory: /
+    directory: .
     schedule:
       interval: daily
   - package-ecosystem: github-actions
-    directory: /
+    directory: .
     schedule:
       interval: daily
