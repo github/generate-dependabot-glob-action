@@ -37,10 +37,10 @@ The default configuration for `glob` is as follows:
 ```js
 const globOpts = {
   root: process.cwd(),
+  absolute: false,
   mark: true,
   matchBase: true,
-  nomount: true,
-  follow: core.getInput('follow-symbolic-links') === 'true'
+  follow: actionOpts['follow-symbolic-links']
 }
 ```
 
@@ -98,21 +98,23 @@ name: Generate dependabot.yml
 
 on:
   push:
-  repository_dispatch:
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
-      
-      - uses: actions/checkout@v3
-        
+
+      - uses: actions/checkout@v4
+
       - name: Generate dependabot.yml
-        uses: Makeshift/generate-dependabot-glob-action@master
+        uses: github/generate-dependabot-glob-action@v1
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v6
 ```
 
 Done. Now, whenever you push to the repository, or manually trigger the workflow, a PR will be created with the generated `dependabot.yml` file matching your wildcards if they've changed.

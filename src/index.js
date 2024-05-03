@@ -1,8 +1,7 @@
 const core = require('@actions/core')
 const yaml = require('js-yaml')
 const fs = require('fs').promises
-const util = require('util')
-const glob = util.promisify(require('glob'))
+const glob = require('glob')
 const path = require('path')
 
 const actionOpts = {
@@ -14,9 +13,9 @@ const actionOpts = {
 
 const globOpts = {
   root: process.cwd(),
+  absolute: false,
   mark: true,
   matchBase: true,
-  nomount: true,
   follow: actionOpts['follow-symbolic-links']
 }
 
@@ -37,12 +36,13 @@ async function run () {
   for (const entry of template.updates) {
     core.info(`Processing entry ${entry.directory} for ecosystem ${entry['package-ecosystem']}`)
     const baseUpdate = clone(entry)
-    const matchingFiles = await glob(entry.directory, globOpts)
+    const matchingFiles = await glob.globSync(entry.directory, globOpts)
     core.info(`Found ${matchingFiles.length} files matching ${entry.directory}`)
     const matchingDirs = new Set(matchingFiles.map(file => path.dirname(file)))
     core.info(`Found ${matchingDirs.size} directories matching ${entry.directory}`)
+    let sortedMatchingDirs = Array.from(matchingDirs).sort()
 
-    for (const dir of matchingDirs) {
+    for (const dir of sortedMatchingDirs) {
       core.info(`Creating entry for ${dir} with ecosystem ${entry['package-ecosystem']}`)
       const newUpdate = clone(baseUpdate)
       newUpdate.directory = dir
