@@ -14558,6 +14558,14 @@ const { isUint8Array, isArrayBuffer } = __nccwpck_require__(9830)
 const { File: UndiciFile } = __nccwpck_require__(8511)
 const { parseMIMEType, serializeAMimeType } = __nccwpck_require__(685)
 
+let random
+try {
+  const crypto = __nccwpck_require__(6005)
+  random = (max) => crypto.randomInt(0, max)
+} catch {
+  random = (max) => Math.floor(Math.random(max))
+}
+
 let ReadableStream = globalThis.ReadableStream
 
 /** @type {globalThis['File']} */
@@ -14643,7 +14651,7 @@ function extractBody (object, keepalive = false) {
     // Set source to a copy of the bytes held by object.
     source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength))
   } else if (util.isFormDataLike(object)) {
-    const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, '0')}`
+    const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
     const prefix = `--${boundary}\r\nContent-Disposition: form-data`
 
     /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */
@@ -29368,14 +29376,6 @@ module.exports = require("fs");
 
 /***/ }),
 
-/***/ 3292:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("fs/promises");
-
-/***/ }),
-
 /***/ 3685:
 /***/ ((module) => {
 
@@ -29408,6 +29408,14 @@ module.exports = require("net");
 
 /***/ }),
 
+/***/ 6005:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:crypto");
+
+/***/ }),
+
 /***/ 5673:
 /***/ ((module) => {
 
@@ -29416,11 +29424,51 @@ module.exports = require("node:events");
 
 /***/ }),
 
+/***/ 7561:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:fs");
+
+/***/ }),
+
+/***/ 3977:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:fs/promises");
+
+/***/ }),
+
+/***/ 9411:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:path");
+
+/***/ }),
+
 /***/ 4492:
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("node:stream");
+
+/***/ }),
+
+/***/ 6915:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:string_decoder");
+
+/***/ }),
+
+/***/ 1041:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:url");
 
 /***/ }),
 
@@ -31169,16 +31217,16 @@ module.exports = parseParams
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Glob = void 0;
 const minimatch_1 = __nccwpck_require__(658);
+const node_url_1 = __nccwpck_require__(1041);
 const path_scurry_1 = __nccwpck_require__(1081);
-const url_1 = __nccwpck_require__(7310);
 const pattern_js_1 = __nccwpck_require__(6866);
 const walker_js_1 = __nccwpck_require__(153);
 // if no process global, just call it linux.
 // so we default to case-sensitive, / separators
-const defaultPlatform = typeof process === 'object' &&
+const defaultPlatform = (typeof process === 'object' &&
     process &&
-    typeof process.platform === 'string'
-    ? process.platform
+    typeof process.platform === 'string') ?
+    process.platform
     : 'linux';
 /**
  * An object that can perform glob pattern traversals.
@@ -31208,6 +31256,7 @@ class Glob {
     signal;
     windowsPathsNoEscape;
     withFileTypes;
+    includeChildMatches;
     /**
      * The options provided to the constructor.
      */
@@ -31244,7 +31293,7 @@ class Glob {
             this.cwd = '';
         }
         else if (opts.cwd instanceof URL || opts.cwd.startsWith('file://')) {
-            opts.cwd = (0, url_1.fileURLToPath)(opts.cwd);
+            opts.cwd = (0, node_url_1.fileURLToPath)(opts.cwd);
         }
         this.cwd = opts.cwd || '';
         this.root = opts.root;
@@ -31253,6 +31302,7 @@ class Glob {
         this.noext = !!opts.noext;
         this.realpath = !!opts.realpath;
         this.absolute = opts.absolute;
+        this.includeChildMatches = opts.includeChildMatches !== false;
         this.noglobstar = !!opts.noglobstar;
         this.matchBase = !!opts.matchBase;
         this.maxDepth =
@@ -31267,7 +31317,8 @@ class Glob {
         }
         this.windowsPathsNoEscape =
             !!opts.windowsPathsNoEscape ||
-                opts.allowWindowsEscape === false;
+                opts.allowWindowsEscape ===
+                    false;
         if (this.windowsPathsNoEscape) {
             pattern = pattern.map(p => p.replace(/\\/g, '/'));
         }
@@ -31288,12 +31339,9 @@ class Glob {
             }
         }
         else {
-            const Scurry = opts.platform === 'win32'
-                ? path_scurry_1.PathScurryWin32
-                : opts.platform === 'darwin'
-                    ? path_scurry_1.PathScurryDarwin
-                    : opts.platform
-                        ? path_scurry_1.PathScurryPosix
+            const Scurry = opts.platform === 'win32' ? path_scurry_1.PathScurryWin32
+                : opts.platform === 'darwin' ? path_scurry_1.PathScurryDarwin
+                    : opts.platform ? path_scurry_1.PathScurryPosix
                         : path_scurry_1.PathScurry;
             this.scurry = new Scurry(this.cwd, {
                 nocase: opts.nocase,
@@ -31345,11 +31393,12 @@ class Glob {
         return [
             ...(await new walker_js_1.GlobWalker(this.patterns, this.scurry.cwd, {
                 ...this.opts,
-                maxDepth: this.maxDepth !== Infinity
-                    ? this.maxDepth + this.scurry.cwd.depth()
+                maxDepth: this.maxDepth !== Infinity ?
+                    this.maxDepth + this.scurry.cwd.depth()
                     : Infinity,
                 platform: this.platform,
                 nocase: this.nocase,
+                includeChildMatches: this.includeChildMatches,
             }).walk()),
         ];
     }
@@ -31357,32 +31406,35 @@ class Glob {
         return [
             ...new walker_js_1.GlobWalker(this.patterns, this.scurry.cwd, {
                 ...this.opts,
-                maxDepth: this.maxDepth !== Infinity
-                    ? this.maxDepth + this.scurry.cwd.depth()
+                maxDepth: this.maxDepth !== Infinity ?
+                    this.maxDepth + this.scurry.cwd.depth()
                     : Infinity,
                 platform: this.platform,
                 nocase: this.nocase,
+                includeChildMatches: this.includeChildMatches,
             }).walkSync(),
         ];
     }
     stream() {
         return new walker_js_1.GlobStream(this.patterns, this.scurry.cwd, {
             ...this.opts,
-            maxDepth: this.maxDepth !== Infinity
-                ? this.maxDepth + this.scurry.cwd.depth()
+            maxDepth: this.maxDepth !== Infinity ?
+                this.maxDepth + this.scurry.cwd.depth()
                 : Infinity,
             platform: this.platform,
             nocase: this.nocase,
+            includeChildMatches: this.includeChildMatches,
         }).stream();
     }
     streamSync() {
         return new walker_js_1.GlobStream(this.patterns, this.scurry.cwd, {
             ...this.opts,
-            maxDepth: this.maxDepth !== Infinity
-                ? this.maxDepth + this.scurry.cwd.depth()
+            maxDepth: this.maxDepth !== Infinity ?
+                this.maxDepth + this.scurry.cwd.depth()
                 : Infinity,
             platform: this.platform,
             nocase: this.nocase,
+            includeChildMatches: this.includeChildMatches,
         }).streamSync();
     }
     /**
@@ -31458,10 +31510,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Ignore = void 0;
 const minimatch_1 = __nccwpck_require__(658);
 const pattern_js_1 = __nccwpck_require__(6866);
-const defaultPlatform = typeof process === 'object' &&
+const defaultPlatform = (typeof process === 'object' &&
     process &&
-    typeof process.platform === 'string'
-    ? process.platform
+    typeof process.platform === 'string') ?
+    process.platform
     : 'linux';
 /**
  * Class used to process ignored patterns
@@ -31471,12 +31523,15 @@ class Ignore {
     relativeChildren;
     absolute;
     absoluteChildren;
+    platform;
+    mmopts;
     constructor(ignored, { nobrace, nocase, noext, noglobstar, platform = defaultPlatform, }) {
         this.relative = [];
         this.absolute = [];
         this.relativeChildren = [];
         this.absoluteChildren = [];
-        const mmopts = {
+        this.platform = platform;
+        this.mmopts = {
             dot: true,
             nobrace,
             nocase,
@@ -31487,6 +31542,10 @@ class Ignore {
             nocomment: true,
             nonegate: true,
         };
+        for (const ign of ignored)
+            this.add(ign);
+    }
+    add(ign) {
         // this is a little weird, but it gives us a clean set of optimized
         // minimatch matchers, without getting tripped up if one of them
         // ends in /** inside a brace section, and it's only inefficient at
@@ -31499,36 +31558,34 @@ class Ignore {
         // for absolute-ness.
         // Yet another way, Minimatch could take an array of glob strings, and
         // a cwd option, and do the right thing.
-        for (const ign of ignored) {
-            const mm = new minimatch_1.Minimatch(ign, mmopts);
-            for (let i = 0; i < mm.set.length; i++) {
-                const parsed = mm.set[i];
-                const globParts = mm.globParts[i];
-                /* c8 ignore start */
-                if (!parsed || !globParts) {
-                    throw new Error('invalid pattern object');
-                }
-                // strip off leading ./ portions
-                // https://github.com/isaacs/node-glob/issues/570
-                while (parsed[0] === '.' && globParts[0] === '.') {
-                    parsed.shift();
-                    globParts.shift();
-                }
-                /* c8 ignore stop */
-                const p = new pattern_js_1.Pattern(parsed, globParts, 0, platform);
-                const m = new minimatch_1.Minimatch(p.globString(), mmopts);
-                const children = globParts[globParts.length - 1] === '**';
-                const absolute = p.isAbsolute();
+        const mm = new minimatch_1.Minimatch(ign, this.mmopts);
+        for (let i = 0; i < mm.set.length; i++) {
+            const parsed = mm.set[i];
+            const globParts = mm.globParts[i];
+            /* c8 ignore start */
+            if (!parsed || !globParts) {
+                throw new Error('invalid pattern object');
+            }
+            // strip off leading ./ portions
+            // https://github.com/isaacs/node-glob/issues/570
+            while (parsed[0] === '.' && globParts[0] === '.') {
+                parsed.shift();
+                globParts.shift();
+            }
+            /* c8 ignore stop */
+            const p = new pattern_js_1.Pattern(parsed, globParts, 0, this.platform);
+            const m = new minimatch_1.Minimatch(p.globString(), this.mmopts);
+            const children = globParts[globParts.length - 1] === '**';
+            const absolute = p.isAbsolute();
+            if (absolute)
+                this.absolute.push(m);
+            else
+                this.relative.push(m);
+            if (children) {
                 if (absolute)
-                    this.absolute.push(m);
+                    this.absoluteChildren.push(m);
                 else
-                    this.relative.push(m);
-                if (children) {
-                    if (absolute)
-                        this.absoluteChildren.push(m);
-                    else
-                        this.relativeChildren.push(m);
-                }
+                    this.relativeChildren.push(m);
             }
         }
     }
@@ -31572,33 +31629,42 @@ exports.Ignore = Ignore;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.glob = exports.hasMagic = exports.Glob = exports.unescape = exports.escape = exports.sync = exports.iterate = exports.iterateSync = exports.stream = exports.streamSync = exports.globIterate = exports.globIterateSync = exports.globSync = exports.globStream = exports.globStreamSync = void 0;
+exports.glob = exports.sync = exports.iterate = exports.iterateSync = exports.stream = exports.streamSync = exports.Ignore = exports.hasMagic = exports.Glob = exports.unescape = exports.escape = void 0;
+exports.globStreamSync = globStreamSync;
+exports.globStream = globStream;
+exports.globSync = globSync;
+exports.globIterateSync = globIterateSync;
+exports.globIterate = globIterate;
 const minimatch_1 = __nccwpck_require__(658);
 const glob_js_1 = __nccwpck_require__(2487);
 const has_magic_js_1 = __nccwpck_require__(3133);
+var minimatch_2 = __nccwpck_require__(658);
+Object.defineProperty(exports, "escape", ({ enumerable: true, get: function () { return minimatch_2.escape; } }));
+Object.defineProperty(exports, "unescape", ({ enumerable: true, get: function () { return minimatch_2.unescape; } }));
+var glob_js_2 = __nccwpck_require__(2487);
+Object.defineProperty(exports, "Glob", ({ enumerable: true, get: function () { return glob_js_2.Glob; } }));
+var has_magic_js_2 = __nccwpck_require__(3133);
+Object.defineProperty(exports, "hasMagic", ({ enumerable: true, get: function () { return has_magic_js_2.hasMagic; } }));
+var ignore_js_1 = __nccwpck_require__(9703);
+Object.defineProperty(exports, "Ignore", ({ enumerable: true, get: function () { return ignore_js_1.Ignore; } }));
 function globStreamSync(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).streamSync();
 }
-exports.globStreamSync = globStreamSync;
 function globStream(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).stream();
 }
-exports.globStream = globStream;
 function globSync(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).walkSync();
 }
-exports.globSync = globSync;
 async function glob_(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).walk();
 }
 function globIterateSync(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).iterateSync();
 }
-exports.globIterateSync = globIterateSync;
 function globIterate(pattern, options = {}) {
     return new glob_js_1.Glob(pattern, options).iterate();
 }
-exports.globIterate = globIterate;
 // aliases: glob.sync.stream() glob.stream.sync() glob.sync() etc
 exports.streamSync = globStreamSync;
 exports.stream = Object.assign(globStream, { sync: globStreamSync });
@@ -31610,15 +31676,6 @@ exports.sync = Object.assign(globSync, {
     stream: globStreamSync,
     iterate: globIterateSync,
 });
-/* c8 ignore start */
-var minimatch_2 = __nccwpck_require__(658);
-Object.defineProperty(exports, "escape", ({ enumerable: true, get: function () { return minimatch_2.escape; } }));
-Object.defineProperty(exports, "unescape", ({ enumerable: true, get: function () { return minimatch_2.unescape; } }));
-var glob_js_2 = __nccwpck_require__(2487);
-Object.defineProperty(exports, "Glob", ({ enumerable: true, get: function () { return glob_js_2.Glob; } }));
-var has_magic_js_2 = __nccwpck_require__(3133);
-Object.defineProperty(exports, "hasMagic", ({ enumerable: true, get: function () { return has_magic_js_2.hasMagic; } }));
-/* c8 ignore stop */
 exports.glob = Object.assign(glob_, {
     glob: glob_,
     globSync,
@@ -31757,9 +31814,9 @@ class Pattern {
     globString() {
         return (this.#globString =
             this.#globString ||
-                (this.#index === 0
-                    ? this.isAbsolute()
-                        ? this.#globList[0] + this.#globList.slice(1).join('/')
+                (this.#index === 0 ?
+                    this.isAbsolute() ?
+                        this.#globList[0] + this.#globList.slice(1).join('/')
                         : this.#globList.join('/')
                     : this.#globList.slice(this.#index).join('/')));
     }
@@ -31788,8 +31845,8 @@ class Pattern {
      */
     isUNC() {
         const pl = this.#patternList;
-        return this.#isUNC !== undefined
-            ? this.#isUNC
+        return this.#isUNC !== undefined ?
+            this.#isUNC
             : (this.#isUNC =
                 this.#platform === 'win32' &&
                     this.#index === 0 &&
@@ -31810,8 +31867,8 @@ class Pattern {
      */
     isDrive() {
         const pl = this.#patternList;
-        return this.#isDrive !== undefined
-            ? this.#isDrive
+        return this.#isDrive !== undefined ?
+            this.#isDrive
             : (this.#isDrive =
                 this.#platform === 'win32' &&
                     this.#index === 0 &&
@@ -31827,8 +31884,8 @@ class Pattern {
      */
     isAbsolute() {
         const pl = this.#patternList;
-        return this.#isAbsolute !== undefined
-            ? this.#isAbsolute
+        return this.#isAbsolute !== undefined ?
+            this.#isAbsolute
             : (this.#isAbsolute =
                 (pl[0] === '' && pl.length > 1) ||
                     this.isDrive() ||
@@ -31839,8 +31896,8 @@ class Pattern {
      */
     root() {
         const p = this.#patternList[0];
-        return typeof p === 'string' && this.isAbsolute() && this.#index === 0
-            ? p
+        return (typeof p === 'string' && this.isAbsolute() && this.#index === 0) ?
+            p
             : '';
     }
     /**
@@ -31976,9 +32033,8 @@ class Processor {
         this.opts = opts;
         this.follow = !!opts.follow;
         this.dot = !!opts.dot;
-        this.hasWalkedCache = hasWalkedCache
-            ? hasWalkedCache.copy()
-            : new HasWalkedCache();
+        this.hasWalkedCache =
+            hasWalkedCache ? hasWalkedCache.copy() : new HasWalkedCache();
     }
     processPatterns(target, patterns) {
         this.patterns = patterns;
@@ -31991,8 +32047,8 @@ class Processor {
             const absolute = pattern.isAbsolute() && this.opts.absolute !== false;
             // start absolute patterns at root
             if (root) {
-                t = t.resolve(root === '/' && this.opts.root !== undefined
-                    ? this.opts.root
+                t = t.resolve(root === '/' && this.opts.root !== undefined ?
+                    this.opts.root
                     : root);
                 const rest = pattern.rest();
                 if (!rest) {
@@ -32192,10 +32248,8 @@ exports.GlobStream = exports.GlobWalker = exports.GlobUtil = void 0;
 const minipass_1 = __nccwpck_require__(4968);
 const ignore_js_1 = __nccwpck_require__(9703);
 const processor_js_1 = __nccwpck_require__(4628);
-const makeIgnore = (ignore, opts) => typeof ignore === 'string'
-    ? new ignore_js_1.Ignore([ignore], opts)
-    : Array.isArray(ignore)
-        ? new ignore_js_1.Ignore(ignore, opts)
+const makeIgnore = (ignore, opts) => typeof ignore === 'string' ? new ignore_js_1.Ignore([ignore], opts)
+    : Array.isArray(ignore) ? new ignore_js_1.Ignore(ignore, opts)
         : ignore;
 /**
  * basic walking utilities that all the glob walker types use
@@ -32212,13 +32266,20 @@ class GlobUtil {
     #sep;
     signal;
     maxDepth;
+    includeChildMatches;
     constructor(patterns, path, opts) {
         this.patterns = patterns;
         this.path = path;
         this.opts = opts;
         this.#sep = !opts.posix && opts.platform === 'win32' ? '\\' : '/';
-        if (opts.ignore) {
-            this.#ignore = makeIgnore(opts.ignore, opts);
+        this.includeChildMatches = opts.includeChildMatches !== false;
+        if (opts.ignore || !this.includeChildMatches) {
+            this.#ignore = makeIgnore(opts.ignore ?? [], opts);
+            if (!this.includeChildMatches &&
+                typeof this.#ignore.add !== 'function') {
+                const m = 'cannot ignore child matches, ignore lacks add() method.';
+                throw new Error(m);
+            }
         }
         // ignore, always set with maxDepth, but it's optional on the
         // GlobOptions type
@@ -32290,7 +32351,7 @@ class GlobUtil {
         return this.matchCheckTest(s, ifDir);
     }
     matchCheckTest(e, ifDir) {
-        return e &&
+        return (e &&
             (this.maxDepth === Infinity || e.depth() <= this.maxDepth) &&
             (!ifDir || e.canReaddir()) &&
             (!this.opts.nodir || !e.isDirectory()) &&
@@ -32298,8 +32359,8 @@ class GlobUtil {
                 !this.opts.follow ||
                 !e.isSymbolicLink() ||
                 !e.realpathCached()?.isDirectory()) &&
-            !this.#ignored(e)
-            ? e
+            !this.#ignored(e)) ?
+            e
             : undefined;
     }
     matchCheckSync(e, ifDir) {
@@ -32325,6 +32386,11 @@ class GlobUtil {
     matchFinish(e, absolute) {
         if (this.#ignored(e))
             return;
+        // we know we have an ignore if this is false, but TS doesn't
+        if (!this.includeChildMatches && this.#ignore?.add) {
+            const ign = `${e.relativePosix()}/**`;
+            this.#ignore.add(ign);
+        }
         const abs = this.opts.absolute === undefined ? absolute : this.opts.absolute;
         this.seen.add(e);
         const mark = this.opts.mark && e.isDirectory() ? this.#sep : '';
@@ -32338,8 +32404,8 @@ class GlobUtil {
         }
         else {
             const rel = this.opts.posix ? e.relativePosix() : e.relative();
-            const pre = this.opts.dotRelative && !rel.startsWith('..' + this.#sep)
-                ? '.' + this.#sep
+            const pre = this.opts.dotRelative && !rel.startsWith('..' + this.#sep) ?
+                '.' + this.#sep
                 : '';
             this.matchEmit(!rel ? '.' + mark : pre + rel + mark);
         }
@@ -32479,10 +32545,9 @@ class GlobUtil {
 }
 exports.GlobUtil = GlobUtil;
 class GlobWalker extends GlobUtil {
-    matches;
+    matches = new Set();
     constructor(patterns, path, opts) {
         super(patterns, path, opts);
-        this.matches = new Set();
     }
     matchEmit(e) {
         this.matches.add(e);
@@ -33906,10 +33971,11 @@ class Minimatch {
         for (let i = 0; i < globParts.length - 1; i++) {
             for (let j = i + 1; j < globParts.length; j++) {
                 const matched = this.partsMatch(globParts[i], globParts[j], !this.preserveMultipleSlashes);
-                if (!matched)
-                    continue;
-                globParts[i] = matched;
-                globParts[j] = [];
+                if (matched) {
+                    globParts[i] = [];
+                    globParts[j] = matched;
+                    break;
+                }
             }
         }
         return globParts.filter(gs => gs.length);
@@ -34559,21 +34625,26 @@ class Stack {
 /**
  * Default export, the thing you're using this module to get.
  *
- * All properties from the options object (with the exception of
- * {@link OptionsBase.max} and {@link OptionsBase.maxSize}) are added as
- * normal public members. (`max` and `maxBase` are read-only getters.)
- * Changing any of these will alter the defaults for subsequent method calls,
- * but is otherwise safe.
+ * The `K` and `V` types define the key and value types, respectively. The
+ * optional `FC` type defines the type of the `context` object passed to
+ * `cache.fetch()` and `cache.memo()`.
+ *
+ * Keys and values **must not** be `null` or `undefined`.
+ *
+ * All properties from the options object (with the exception of `max`,
+ * `maxSize`, `fetchMethod`, `memoMethod`, `dispose` and `disposeAfter`) are
+ * added as normal public members. (The listed options are read-only getters.)
+ *
+ * Changing any of these will alter the defaults for subsequent method calls.
  */
 class LRUCache {
-    // properties coming in from the options of these, only max and maxSize
-    // really *need* to be protected. The rest can be modified, as they just
-    // set defaults for various methods.
+    // options that cannot be changed without disaster
     #max;
     #maxSize;
     #dispose;
     #disposeAfter;
     #fetchMethod;
+    #memoMethod;
     /**
      * {@link LRUCache.OptionsBase.ttl}
      */
@@ -34719,6 +34790,9 @@ class LRUCache {
     get fetchMethod() {
         return this.#fetchMethod;
     }
+    get memoMethod() {
+        return this.#memoMethod;
+    }
     /**
      * {@link LRUCache.OptionsBase.dispose} (read-only)
      */
@@ -34732,7 +34806,7 @@ class LRUCache {
         return this.#disposeAfter;
     }
     constructor(options) {
-        const { max = 0, ttl, ttlResolution = 1, ttlAutopurge, updateAgeOnGet, updateAgeOnHas, allowStale, dispose, disposeAfter, noDisposeOnSet, noUpdateTTL, maxSize = 0, maxEntrySize = 0, sizeCalculation, fetchMethod, noDeleteOnFetchRejection, noDeleteOnStaleGet, allowStaleOnFetchRejection, allowStaleOnFetchAbort, ignoreFetchAbort, } = options;
+        const { max = 0, ttl, ttlResolution = 1, ttlAutopurge, updateAgeOnGet, updateAgeOnHas, allowStale, dispose, disposeAfter, noDisposeOnSet, noUpdateTTL, maxSize = 0, maxEntrySize = 0, sizeCalculation, fetchMethod, memoMethod, noDeleteOnFetchRejection, noDeleteOnStaleGet, allowStaleOnFetchRejection, allowStaleOnFetchAbort, ignoreFetchAbort, } = options;
         if (max !== 0 && !isPosInt(max)) {
             throw new TypeError('max option must be a nonnegative integer');
         }
@@ -34752,6 +34826,11 @@ class LRUCache {
                 throw new TypeError('sizeCalculation set to non-function');
             }
         }
+        if (memoMethod !== undefined &&
+            typeof memoMethod !== 'function') {
+            throw new TypeError('memoMethod must be a function if defined');
+        }
+        this.#memoMethod = memoMethod;
         if (fetchMethod !== undefined &&
             typeof fetchMethod !== 'function') {
             throw new TypeError('fetchMethod must be a function if specified');
@@ -34830,7 +34909,8 @@ class LRUCache {
         }
     }
     /**
-     * Return the remaining TTL time for a given entry key
+     * Return the number of ms left in the item's TTL. If item is not in cache,
+     * returns `0`. Returns `Infinity` if item is in cache without a defined TTL.
      */
     getRemainingTTL(key) {
         return this.#keyMap.has(key) ? Infinity : 0;
@@ -34846,7 +34926,7 @@ class LRUCache {
             if (ttl !== 0 && this.ttlAutopurge) {
                 const t = setTimeout(() => {
                     if (this.#isStale(index)) {
-                        this.delete(this.#keyList[index]);
+                        this.#delete(this.#keyList[index], 'expire');
                     }
                 }, ttl + 1);
                 // unref() not supported on all platforms
@@ -35103,13 +35183,14 @@ class LRUCache {
         return this.entries();
     }
     /**
-     * A String value that is used in the creation of the default string description of an object.
-     * Called by the built-in method Object.prototype.toString.
+     * A String value that is used in the creation of the default string
+     * description of an object. Called by the built-in method
+     * `Object.prototype.toString`.
      */
     [Symbol.toStringTag] = 'LRUCache';
     /**
      * Find a value for which the supplied fn method returns a truthy value,
-     * similar to Array.find().  fn is called as fn(value, key, cache).
+     * similar to `Array.find()`. fn is called as `fn(value, key, cache)`.
      */
     find(fn, getOptions = {}) {
         for (const i of this.#indexes()) {
@@ -35125,10 +35206,15 @@ class LRUCache {
         }
     }
     /**
-     * Call the supplied function on each item in the cache, in order from
-     * most recently used to least recently used.  fn is called as
-     * fn(value, key, cache).  Does not update age or recenty of use.
-     * Does not iterate over stale values.
+     * Call the supplied function on each item in the cache, in order from most
+     * recently used to least recently used.
+     *
+     * `fn` is called as `fn(value, key, cache)`.
+     *
+     * If `thisp` is provided, function will be called in the `this`-context of
+     * the provided object, or the cache if no `thisp` object is provided.
+     *
+     * Does not update age or recenty of use, or iterate over stale values.
      */
     forEach(fn, thisp = this) {
         for (const i of this.#indexes()) {
@@ -35164,7 +35250,7 @@ class LRUCache {
         let deleted = false;
         for (const i of this.#rindexes({ allowStale: true })) {
             if (this.#isStale(i)) {
-                this.delete(this.#keyList[i]);
+                this.#delete(this.#keyList[i], 'expire');
                 deleted = true;
             }
         }
@@ -35172,9 +35258,15 @@ class LRUCache {
     }
     /**
      * Get the extended info about a given entry, to get its value, size, and
-     * TTL info simultaneously. Like {@link LRUCache#dump}, but just for a
-     * single key. Always returns stale values, if their info is found in the
-     * cache, so be sure to check for expired TTLs if relevant.
+     * TTL info simultaneously. Returns `undefined` if the key is not present.
+     *
+     * Unlike {@link LRUCache#dump}, which is designed to be portable and survive
+     * serialization, the `start` value is always the current timestamp, and the
+     * `ttl` is a calculated remaining time to live (negative if expired).
+     *
+     * Always returns stale values, if their info is found in the cache, so be
+     * sure to check for expirations (ie, a negative {@link LRUCache.Entry#ttl})
+     * if relevant.
      */
     info(key) {
         const i = this.#keyMap.get(key);
@@ -35203,7 +35295,16 @@ class LRUCache {
     }
     /**
      * Return an array of [key, {@link LRUCache.Entry}] tuples which can be
-     * passed to cache.load()
+     * passed to {@link LRUCache#load}.
+     *
+     * The `start` fields are calculated relative to a portable `Date.now()`
+     * timestamp, even if `performance.now()` is available.
+     *
+     * Stale entries are always included in the `dump`, even if
+     * {@link LRUCache.OptionsBase.allowStale} is false.
+     *
+     * Note: this returns an actual array, not a generator, so it can be more
+     * easily passed around.
      */
     dump() {
         const arr = [];
@@ -35232,8 +35333,12 @@ class LRUCache {
     }
     /**
      * Reset the cache and load in the items in entries in the order listed.
-     * Note that the shape of the resulting cache may be different if the
-     * same options are not used in both caches.
+     *
+     * The shape of the resulting cache may be different if the same options are
+     * not used in both caches.
+     *
+     * The `start` fields are assumed to be calculated relative to a portable
+     * `Date.now()` timestamp, even if `performance.now()` is available.
      */
     load(arr) {
         this.clear();
@@ -35256,6 +35361,30 @@ class LRUCache {
      *
      * Note: if `undefined` is specified as a value, this is an alias for
      * {@link LRUCache#delete}
+     *
+     * Fields on the {@link LRUCache.SetOptions} options param will override
+     * their corresponding values in the constructor options for the scope
+     * of this single `set()` operation.
+     *
+     * If `start` is provided, then that will set the effective start
+     * time for the TTL calculation. Note that this must be a previous
+     * value of `performance.now()` if supported, or a previous value of
+     * `Date.now()` if not.
+     *
+     * Options object may also include `size`, which will prevent
+     * calling the `sizeCalculation` function and just use the specified
+     * number if it is a positive integer, and `noDisposeOnSet` which
+     * will prevent calling a `dispose` function in the case of
+     * overwrites.
+     *
+     * If the `size` (or return value of `sizeCalculation`) for a given
+     * entry is greater than `maxEntrySize`, then the item will not be
+     * added to the cache.
+     *
+     * Will update the recency of the entry.
+     *
+     * If the value is `undefined`, then this is an alias for
+     * `cache.delete(key)`. `undefined` is never stored in the cache.
      */
     set(k, v, setOptions = {}) {
         if (v === undefined) {
@@ -35273,7 +35402,7 @@ class LRUCache {
                 status.maxEntrySizeExceeded = true;
             }
             // have to delete, in case something is there already.
-            this.delete(k);
+            this.#delete(k, 'set');
             return this;
         }
         let index = this.#size === 0 ? undefined : this.#keyMap.get(k);
@@ -35425,6 +35554,14 @@ class LRUCache {
      * Will return false if the item is stale, even though it is technically
      * in the cache.
      *
+     * Check if a key is in the cache, without updating the recency of
+     * use. Age is updated if {@link LRUCache.OptionsBase.updateAgeOnHas} is set
+     * to `true` in either the options or the constructor.
+     *
+     * Will return `false` if the item is stale, even though it is technically in
+     * the cache. The difference can be determined (if it matters) by using a
+     * `status` argument, and inspecting the `has` field.
+     *
      * Will not update item age unless
      * {@link LRUCache.OptionsBase.updateAgeOnHas} is set.
      */
@@ -35516,7 +35653,7 @@ class LRUCache {
                         this.#valList[index] = bf.__staleWhileFetching;
                     }
                     else {
-                        this.delete(k);
+                        this.#delete(k, 'fetch');
                     }
                 }
                 else {
@@ -35545,7 +35682,7 @@ class LRUCache {
                 // the stale value is not removed from the cache when the fetch fails.
                 const del = !noDelete || bf.__staleWhileFetching === undefined;
                 if (del) {
-                    this.delete(k);
+                    this.#delete(k, 'fetch');
                 }
                 else if (!allowStaleAborted) {
                     // still replace the *promise* with the stale value,
@@ -35691,6 +35828,28 @@ class LRUCache {
             return staleVal ? p.__staleWhileFetching : (p.__returned = p);
         }
     }
+    async forceFetch(k, fetchOptions = {}) {
+        const v = await this.fetch(k, fetchOptions);
+        if (v === undefined)
+            throw new Error('fetch() returned undefined');
+        return v;
+    }
+    memo(k, memoOptions = {}) {
+        const memoMethod = this.#memoMethod;
+        if (!memoMethod) {
+            throw new Error('no memoMethod provided to constructor');
+        }
+        const { context, forceRefresh, ...options } = memoOptions;
+        const v = this.get(k, options);
+        if (!forceRefresh && v !== undefined)
+            return v;
+        const vv = memoMethod(k, v, {
+            options,
+            context,
+        });
+        this.set(k, vv, options);
+        return vv;
+    }
     /**
      * Return a value from the cache. Will update the recency of the cache
      * entry found.
@@ -35711,7 +35870,7 @@ class LRUCache {
                 // delete only if not an in-flight background fetch
                 if (!fetching) {
                     if (!noDeleteOnStaleGet) {
-                        this.delete(k);
+                        this.#delete(k, 'expire');
                     }
                     if (status && allowStale)
                         status.returnedStale = true;
@@ -35774,16 +35933,20 @@ class LRUCache {
     }
     /**
      * Deletes a key out of the cache.
+     *
      * Returns true if the key was deleted, false otherwise.
      */
     delete(k) {
+        return this.#delete(k, 'delete');
+    }
+    #delete(k, reason) {
         let deleted = false;
         if (this.#size !== 0) {
             const index = this.#keyMap.get(k);
             if (index !== undefined) {
                 deleted = true;
                 if (this.#size === 1) {
-                    this.clear();
+                    this.#clear(reason);
                 }
                 else {
                     this.#removeItemSize(index);
@@ -35793,10 +35956,10 @@ class LRUCache {
                     }
                     else if (this.#hasDispose || this.#hasDisposeAfter) {
                         if (this.#hasDispose) {
-                            this.#dispose?.(v, k, 'delete');
+                            this.#dispose?.(v, k, reason);
                         }
                         if (this.#hasDisposeAfter) {
-                            this.#disposed?.push([v, k, 'delete']);
+                            this.#disposed?.push([v, k, reason]);
                         }
                     }
                     this.#keyMap.delete(k);
@@ -35832,6 +35995,9 @@ class LRUCache {
      * Clear the cache entirely, throwing away all values.
      */
     clear() {
+        return this.#clear('delete');
+    }
+    #clear(reason) {
         for (const index of this.#rindexes({ allowStale: true })) {
             const v = this.#valList[index];
             if (this.#isBackgroundFetch(v)) {
@@ -35840,10 +36006,10 @@ class LRUCache {
             else {
                 const k = this.#keyList[index];
                 if (this.#hasDispose) {
-                    this.#dispose?.(v, k, 'delete');
+                    this.#dispose?.(v, k, reason);
                 }
                 if (this.#hasDisposeAfter) {
-                    this.#disposed?.push([v, k, 'delete']);
+                    this.#disposed?.push([v, k, reason]);
                 }
             }
         }
@@ -35892,9 +36058,9 @@ const proc = typeof process === 'object' && process
         stdout: null,
         stderr: null,
     };
-const events_1 = __nccwpck_require__(2361);
-const stream_1 = __importDefault(__nccwpck_require__(2781));
-const string_decoder_1 = __nccwpck_require__(1576);
+const node_events_1 = __nccwpck_require__(5673);
+const node_stream_1 = __importDefault(__nccwpck_require__(4492));
+const node_string_decoder_1 = __nccwpck_require__(6915);
 /**
  * Return true if the argument is a Minipass stream, Node stream, or something
  * else that Minipass can interact with.
@@ -35902,7 +36068,7 @@ const string_decoder_1 = __nccwpck_require__(1576);
 const isStream = (s) => !!s &&
     typeof s === 'object' &&
     (s instanceof Minipass ||
-        s instanceof stream_1.default ||
+        s instanceof node_stream_1.default ||
         (0, exports.isReadable)(s) ||
         (0, exports.isWritable)(s));
 exports.isStream = isStream;
@@ -35911,17 +36077,17 @@ exports.isStream = isStream;
  */
 const isReadable = (s) => !!s &&
     typeof s === 'object' &&
-    s instanceof events_1.EventEmitter &&
+    s instanceof node_events_1.EventEmitter &&
     typeof s.pipe === 'function' &&
     // node core Writable streams have a pipe() method, but it throws
-    s.pipe !== stream_1.default.Writable.prototype.pipe;
+    s.pipe !== node_stream_1.default.Writable.prototype.pipe;
 exports.isReadable = isReadable;
 /**
  * Return true if the argument is a valid {@link Minipass.Writable}
  */
 const isWritable = (s) => !!s &&
     typeof s === 'object' &&
-    s instanceof events_1.EventEmitter &&
+    s instanceof node_events_1.EventEmitter &&
     typeof s.write === 'function' &&
     typeof s.end === 'function';
 exports.isWritable = isWritable;
@@ -36028,7 +36194,7 @@ const isEncodingOptions = (o) => !o.objectMode && !!o.encoding && o.encoding !==
  * `Events` is the set of event handler signatures that this object
  * will emit, see {@link Minipass.Events}
  */
-class Minipass extends events_1.EventEmitter {
+class Minipass extends node_events_1.EventEmitter {
     [FLOWING] = false;
     [PAUSED] = false;
     [PIPES] = [];
@@ -36083,7 +36249,7 @@ class Minipass extends events_1.EventEmitter {
         }
         this[ASYNC] = !!options.async;
         this[DECODER] = this[ENCODING]
-            ? new string_decoder_1.StringDecoder(this[ENCODING])
+            ? new node_string_decoder_1.StringDecoder(this[ENCODING])
             : null;
         //@ts-ignore - private option for debugging and testing
         if (options && options.debugExposeBuffer === true) {
@@ -36942,14 +37108,14 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.PathScurry = exports.Path = exports.PathScurryDarwin = exports.PathScurryPosix = exports.PathScurryWin32 = exports.PathScurryBase = exports.PathPosix = exports.PathWin32 = exports.PathBase = exports.ChildrenCache = exports.ResolveCache = void 0;
 const lru_cache_1 = __nccwpck_require__(3866);
-const path_1 = __nccwpck_require__(1017);
-const url_1 = __nccwpck_require__(7310);
-const actualFS = __importStar(__nccwpck_require__(7147));
+const node_path_1 = __nccwpck_require__(9411);
+const node_url_1 = __nccwpck_require__(1041);
 const fs_1 = __nccwpck_require__(7147);
+const actualFS = __importStar(__nccwpck_require__(7561));
 const realpathSync = fs_1.realpathSync.native;
 // TODO: test perf of fs/promises realpath vs realpathCB,
 // since the promises one uses realpath.native
-const promises_1 = __nccwpck_require__(3292);
+const promises_1 = __nccwpck_require__(3977);
 const minipass_1 = __nccwpck_require__(4968);
 const defaultFS = {
     lstatSync: fs_1.lstatSync,
@@ -36965,8 +37131,8 @@ const defaultFS = {
     },
 };
 // if they just gave us require('fs') then use our default
-const fsFromOption = (fsOption) => !fsOption || fsOption === defaultFS || fsOption === actualFS
-    ? defaultFS
+const fsFromOption = (fsOption) => !fsOption || fsOption === defaultFS || fsOption === actualFS ?
+    defaultFS
     : {
         ...defaultFS,
         ...fsOption,
@@ -37007,20 +37173,13 @@ const ENOREADLINK = 0b0001_0000_0000;
 const ENOREALPATH = 0b0010_0000_0000;
 const ENOCHILD = ENOTDIR | ENOENT | ENOREALPATH;
 const TYPEMASK = 0b0011_1111_1111;
-const entToType = (s) => s.isFile()
-    ? IFREG
-    : s.isDirectory()
-        ? IFDIR
-        : s.isSymbolicLink()
-            ? IFLNK
-            : s.isCharacterDevice()
-                ? IFCHR
-                : s.isBlockDevice()
-                    ? IFBLK
-                    : s.isSocket()
-                        ? IFSOCK
-                        : s.isFIFO()
-                            ? IFIFO
+const entToType = (s) => s.isFile() ? IFREG
+    : s.isDirectory() ? IFDIR
+        : s.isSymbolicLink() ? IFLNK
+            : s.isCharacterDevice() ? IFCHR
+                : s.isBlockDevice() ? IFBLK
+                    : s.isSocket() ? IFSOCK
+                        : s.isFIFO() ? IFIFO
                             : UNKNOWN;
 // normalize unicode path names
 const normalizeCache = new Map();
@@ -37124,6 +37283,11 @@ class PathBase {
      * @internal
      */
     nocase;
+    /**
+     * boolean indicating that this path is the current working directory
+     * of the PathScurry collection that contains it.
+     */
+    isCWD = false;
     // potential default fs override
     #fs;
     // Stats fields
@@ -37211,13 +37375,21 @@ class PathBase {
     #realpath;
     /**
      * This property is for compatibility with the Dirent class as of
-     * Node v20, where Dirent['path'] refers to the path of the directory
-     * that was passed to readdir.  So, somewhat counterintuitively, this
-     * property refers to the *parent* path, not the path object itself.
-     * For root entries, it's the path to the entry itself.
+     * Node v20, where Dirent['parentPath'] refers to the path of the
+     * directory that was passed to readdir. For root entries, it's the path
+     * to the entry itself.
+     */
+    get parentPath() {
+        return (this.parent || this).fullpath();
+    }
+    /**
+     * Deprecated alias for Dirent['parentPath'] Somewhat counterintuitively,
+     * this property refers to the *parent* path, not the path object itself.
+     *
+     * @deprecated
      */
     get path() {
-        return (this.parent || this).fullpath();
+        return this.parentPath;
     }
     /**
      * Do not create new Path objects directly.  They should always be accessed
@@ -37272,8 +37444,8 @@ class PathBase {
         const rootPath = this.getRootString(path);
         const dir = path.substring(rootPath.length);
         const dirParts = dir.split(this.splitSep);
-        const result = rootPath
-            ? this.getRoot(rootPath).#resolveParts(dirParts)
+        const result = rootPath ?
+            this.getRoot(rootPath).#resolveParts(dirParts)
             : this.#resolveParts(dirParts);
         return result;
     }
@@ -37324,9 +37496,7 @@ class PathBase {
         }
         // find the child
         const children = this.children();
-        const name = this.nocase
-            ? normalizeNocase(pathPart)
-            : normalize(pathPart);
+        const name = this.nocase ? normalizeNocase(pathPart) : normalize(pathPart);
         for (const p of children) {
             if (p.#matchName === name) {
                 return p;
@@ -37336,9 +37506,7 @@ class PathBase {
         // actually exist.  If we know the parent isn't a dir, then
         // in fact it CAN'T exist.
         const s = this.parent ? this.sep : '';
-        const fullpath = this.#fullpath
-            ? this.#fullpath + s + pathPart
-            : undefined;
+        const fullpath = this.#fullpath ? this.#fullpath + s + pathPart : undefined;
         const pchild = this.newChild(pathPart, UNKNOWN, {
             ...opts,
             parent: this,
@@ -37357,6 +37525,8 @@ class PathBase {
      * the cwd, then this ends up being equivalent to the fullpath()
      */
     relative() {
+        if (this.isCWD)
+            return '';
         if (this.#relative !== undefined) {
             return this.#relative;
         }
@@ -37377,6 +37547,8 @@ class PathBase {
     relativePosix() {
         if (this.sep === '/')
             return this.relative();
+        if (this.isCWD)
+            return '';
         if (this.#relativePosix !== undefined)
             return this.#relativePosix;
         const name = this.name;
@@ -37442,23 +37614,15 @@ class PathBase {
         return this[`is${type}`]();
     }
     getType() {
-        return this.isUnknown()
-            ? 'Unknown'
-            : this.isDirectory()
-                ? 'Directory'
-                : this.isFile()
-                    ? 'File'
-                    : this.isSymbolicLink()
-                        ? 'SymbolicLink'
-                        : this.isFIFO()
-                            ? 'FIFO'
-                            : this.isCharacterDevice()
-                                ? 'CharacterDevice'
-                                : this.isBlockDevice()
-                                    ? 'BlockDevice'
-                                    : /* c8 ignore start */ this.isSocket()
-                                        ? 'Socket'
-                                        : 'Unknown';
+        return (this.isUnknown() ? 'Unknown'
+            : this.isDirectory() ? 'Directory'
+                : this.isFile() ? 'File'
+                    : this.isSymbolicLink() ? 'SymbolicLink'
+                        : this.isFIFO() ? 'FIFO'
+                            : this.isCharacterDevice() ? 'CharacterDevice'
+                                : this.isBlockDevice() ? 'BlockDevice'
+                                    : /* c8 ignore start */ this.isSocket() ? 'Socket'
+                                        : 'Unknown');
         /* c8 ignore stop */
     }
     /**
@@ -37592,8 +37756,8 @@ class PathBase {
      * directly.
      */
     isNamed(n) {
-        return !this.nocase
-            ? this.#matchName === normalize(n)
+        return !this.nocase ?
+            this.#matchName === normalize(n)
             : this.#matchName === normalizeNocase(n);
     }
     /**
@@ -37649,7 +37813,7 @@ class PathBase {
         /* c8 ignore stop */
         try {
             const read = this.#fs.readlinkSync(this.fullpath());
-            const linkTarget = (this.parent.realpathSync())?.resolve(read);
+            const linkTarget = this.parent.realpathSync()?.resolve(read);
             if (linkTarget) {
                 return (this.#linkTarget = linkTarget);
             }
@@ -37770,9 +37934,7 @@ class PathBase {
     #readdirMaybePromoteChild(e, c) {
         for (let p = c.provisional; p < c.length; p++) {
             const pchild = c[p];
-            const name = this.nocase
-                ? normalizeNocase(e.name)
-                : normalize(e.name);
+            const name = this.nocase ? normalizeNocase(e.name) : normalize(e.name);
             if (name !== pchild.#matchName) {
                 continue;
             }
@@ -38071,6 +38233,8 @@ class PathBase {
     [setAsCwd](oldCwd) {
         if (oldCwd === this)
             return;
+        oldCwd.isCWD = false;
+        this.isCWD = true;
         const changed = new Set([]);
         let rp = [];
         let p = this;
@@ -38125,7 +38289,7 @@ class PathWin32 extends PathBase {
      * @internal
      */
     getRootString(path) {
-        return path_1.win32.parse(path).root;
+        return node_path_1.win32.parse(path).root;
     }
     /**
      * @internal
@@ -38247,7 +38411,7 @@ class PathScurryBase {
     constructor(cwd = process.cwd(), pathImpl, sep, { nocase, childrenCacheSize = 16 * 1024, fs = defaultFS, } = {}) {
         this.#fs = fsFromOption(fs);
         if (cwd instanceof URL || cwd.startsWith('file://')) {
-            cwd = (0, url_1.fileURLToPath)(cwd);
+            cwd = (0, node_url_1.fileURLToPath)(cwd);
         }
         // resolve and split root, and then add to the store.
         // this is the only time we call path.resolve()
@@ -38836,7 +39000,7 @@ class PathScurryWin32 extends PathScurryBase {
     sep = '\\';
     constructor(cwd = process.cwd(), opts = {}) {
         const { nocase = true } = opts;
-        super(cwd, path_1.win32, '\\', { ...opts, nocase });
+        super(cwd, node_path_1.win32, '\\', { ...opts, nocase });
         this.nocase = nocase;
         for (let p = this.cwd; p; p = p.parent) {
             p.nocase = this.nocase;
@@ -38849,7 +39013,7 @@ class PathScurryWin32 extends PathScurryBase {
         // if the path starts with a single separator, it's not a UNC, and we'll
         // just get separator as the root, and driveFromUNC will return \
         // In that case, mount \ on the root from the cwd.
-        return path_1.win32.parse(dir).root.toUpperCase();
+        return node_path_1.win32.parse(dir).root.toUpperCase();
     }
     /**
      * @internal
@@ -38879,7 +39043,7 @@ class PathScurryPosix extends PathScurryBase {
     sep = '/';
     constructor(cwd = process.cwd(), opts = {}) {
         const { nocase = false } = opts;
-        super(cwd, path_1.posix, '/', { ...opts, nocase });
+        super(cwd, node_path_1.posix, '/', { ...opts, nocase });
         this.nocase = nocase;
     }
     /**
@@ -38929,10 +39093,8 @@ exports.Path = process.platform === 'win32' ? PathWin32 : PathPosix;
  * {@link PathScurryWin32} on Windows systems, {@link PathScurryDarwin} on
  * Darwin (macOS) systems, {@link PathScurryPosix} on all others.
  */
-exports.PathScurry = process.platform === 'win32'
-    ? PathScurryWin32
-    : process.platform === 'darwin'
-        ? PathScurryDarwin
+exports.PathScurry = process.platform === 'win32' ? PathScurryWin32
+    : process.platform === 'darwin' ? PathScurryDarwin
         : PathScurryPosix;
 //# sourceMappingURL=index.js.map
 
