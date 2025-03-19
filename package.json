@@ -27,7 +27,7 @@
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1",
+    "@vercel/ncc": "^0.38.3",
     "standard": "^17.1.0"
   }
 }
