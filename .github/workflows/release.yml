@@ -5,6 +5,8 @@ on:
   repository_dispatch:
   workflow_dispatch:
 
+permissions:
+  contents: read
 jobs:
   release:
     runs-on: ubuntu-latest
